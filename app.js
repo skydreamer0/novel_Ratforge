@@ -1,5 +1,21 @@
+function inferGithubRepoFromLocation() {
+  const host = window.location.hostname || "";
+  if (!host.endsWith(".github.io")) return null;
+  const owner = host.replace(/\.github\.io$/, "");
+  const pathParts = window.location.pathname.split("/").filter(Boolean);
+  const repo = pathParts[0] || null;
+  if (!owner || !repo) return null;
+  return { owner, repo };
+}
+
+const inferredGithub = inferGithubRepoFromLocation();
+const branchFromQuery = new URL(window.location.href).searchParams.get("branch");
+const forceSourceFromQuery = new URL(window.location.href).searchParams.get("source");
 const config = {
   includeExtensions: [".md"],
+  githubOwner: inferredGithub?.owner || "skydreamer0",
+  githubRepo: inferredGithub?.repo || "newtestnovel",
+  githubBranch: branchFromQuery || "master",
 };
 
 const statusEl = document.getElementById("status");
@@ -17,6 +33,7 @@ let files = [];
 let activeIndex = -1;
 let filterText = "";
 const collapsedFolders = new Set();
+let sourceMode = "netlify";
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -94,7 +111,27 @@ function getTreeApiUrl() {
   return "/.netlify/functions/github?mode=tree";
 }
 
+function getGithubTreeApiUrl() {
+  const branch = encodeURIComponent(config.githubBranch);
+  return `https://api.github.com/repos/${config.githubOwner}/${config.githubRepo}/git/trees/${branch}?recursive=1`;
+}
+
+function encodePath(path) {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+function toGithubRawUrl(path) {
+  const encodedPath = encodePath(path);
+  return `https://raw.githubusercontent.com/${config.githubOwner}/${config.githubRepo}/${config.githubBranch}/${encodedPath}`;
+}
+
 function toRawUrl(path) {
+  if (sourceMode === "github") {
+    return toGithubRawUrl(path);
+  }
   const params = new URLSearchParams({ path });
   return `/.netlify/functions/github?${params.toString()}`;
 }
@@ -266,18 +303,68 @@ function renderList() {
 
 async function loadFileList() {
   setStatus("正在抓取檔案列表...");
-  const resp = await fetch(getTreeApiUrl());
-  if (!resp.ok) {
-    const message = await resp.text();
-    throw new Error(message || `讀取檔案列表失敗: HTTP ${resp.status}`);
+  let tree = null;
+  let netlifyError = null;
+  let githubError = null;
+  const preferGithub =
+    forceSourceFromQuery === "github" ||
+    (forceSourceFromQuery !== "netlify" && window.location.hostname.endsWith(".github.io"));
+
+  const loadFromNetlify = async () => {
+    const resp = await fetch(getTreeApiUrl());
+    if (!resp.ok) {
+      const message = await resp.text();
+      throw new Error(message || `讀取檔案列表失敗: HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    if (!data.tree) throw new Error("Git tree 格式不正確");
+    sourceMode = "netlify";
+    return data.tree;
+  };
+
+  const loadFromGithub = async () => {
+    const resp = await fetch(getGithubTreeApiUrl());
+    if (!resp.ok) {
+      const message = await resp.text();
+      throw new Error(message || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    if (!data.tree) throw new Error("GitHub tree 格式不正確");
+    sourceMode = "github";
+    return data.tree;
+  };
+
+  if (preferGithub) {
+    try {
+      tree = await loadFromGithub();
+    } catch (err) {
+      githubError = err;
+      try {
+        tree = await loadFromNetlify();
+      } catch (fallbackErr) {
+        netlifyError = fallbackErr;
+      }
+    }
+  } else {
+    try {
+      tree = await loadFromNetlify();
+    } catch (err) {
+      netlifyError = err;
+      try {
+        tree = await loadFromGithub();
+      } catch (fallbackErr) {
+        githubError = fallbackErr;
+      }
+    }
   }
 
-  const data = await resp.json();
-  if (!data.tree) {
-    throw new Error("Git tree 格式不正確");
+  if (!tree) {
+    throw new Error(
+      `Netlify 與 GitHub 皆讀取失敗。Netlify: ${String(netlifyError)} | GitHub: ${String(githubError)}`,
+    );
   }
 
-  files = data.tree
+  files = tree
     .filter((item) => item.type === "blob" && isTargetFile(item.path))
     .filter((item) => item.path !== "README.md")
     .sort((a, b) => compareFilePaths(a.path, b.path));
