@@ -28,7 +28,7 @@ const appEl = document.querySelector(".app");
 const menuBtn = document.getElementById("menu-btn");
 const themeToggleButtons = Array.from(document.querySelectorAll(".theme-toggle, #theme-toggle"));
 const searchInput = document.getElementById("search-input");
-const bottomEdgeScrollThresholdPx = 72;
+const bottomEdgeScrollThresholdPx = 110;
 const bottomEdgeScrollRatio = 0.82;
 let lastBottomEdgeScrollAt = 0;
 
@@ -491,30 +491,55 @@ function bindKeyboardNavigation() {
 }
 
 function bindBottomEdgeTouchScroll() {
+  const maybeScrollFromBottomEdge = (clientX, clientY, target) => {
+    const resolvedTarget =
+      target instanceof Element ? target : document.elementFromPoint(clientX, clientY);
+    if (!(resolvedTarget instanceof Element)) return;
+    if (resolvedTarget.closest(".sidebar, a, button, input, textarea, select, label")) return;
+
+    const selection = window.getSelection?.();
+    if (selection && selection.type === "Range" && selection.toString().trim().length > 0) return;
+
+    const edgeStartY = window.innerHeight - bottomEdgeScrollThresholdPx;
+    if (clientY < edgeStartY) return;
+
+    const now = Date.now();
+    if (now - lastBottomEdgeScrollAt < 480) return;
+    lastBottomEdgeScrollAt = now;
+
+    window.scrollBy({
+      top: Math.round(window.innerHeight * bottomEdgeScrollRatio),
+      left: 0,
+      behavior: "smooth",
+    });
+  };
+
   document.addEventListener(
     "pointerup",
     (event) => {
-      if (event.pointerType !== "touch" || event.defaultPrevented) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!contentEl.contains(target)) return;
-      if (target.closest("a, button, input, textarea, select, label")) return;
+      if (event.defaultPrevented) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      maybeScrollFromBottomEdge(event.clientX, event.clientY, event.target);
+    },
+    { passive: true },
+  );
 
-      const selection = window.getSelection?.();
-      if (selection && selection.type === "Range" && selection.toString().trim().length > 0) return;
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      if (event.defaultPrevented) return;
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+      maybeScrollFromBottomEdge(touch.clientX, touch.clientY, event.target);
+    },
+    { passive: true },
+  );
 
-      const edgeStartY = window.innerHeight - bottomEdgeScrollThresholdPx;
-      if (event.clientY < edgeStartY) return;
-
-      const now = Date.now();
-      if (now - lastBottomEdgeScrollAt < 220) return;
-      lastBottomEdgeScrollAt = now;
-
-      window.scrollBy({
-        top: Math.round(window.innerHeight * bottomEdgeScrollRatio),
-        left: 0,
-        behavior: "smooth",
-      });
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      maybeScrollFromBottomEdge(event.clientX, event.clientY, event.target);
     },
     { passive: true },
   );
