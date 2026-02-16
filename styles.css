@@ -301,7 +301,9 @@ button:disabled {
 }
 
 @media (max-width: 980px) {
-  .app {
+
+  .app,
+  .app.sidebar-collapsed {
     grid-template-columns: 1fr;
   }
 
