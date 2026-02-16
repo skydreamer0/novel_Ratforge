@@ -8,8 +8,8 @@ CHAPTERS_DIR = "/Users/george/Library/CloudStorage/OneDrive-MSFT/0.專案/novel/
 # 模式與略過邏輯
 FORBIDDEN_PATTERNS = [
     r"(?<!# )第[一二三四五六七八九十0-9]+[卷章]",
-    r"(?<!\w)Ch[0-9]+",
-    r"Chapter [0-9]+",
+    r"(?<!\w)Ch ?[0-9]+",  # Updated to allow optional space
+    r"Chapter ?[0-9]+",    # Updated to allow optional space
     r"卷末",
     r"本章",
     r"下一章"
@@ -36,8 +36,11 @@ def fix_content(content, path):
             # 將 "在第X卷中" 類型的詞替換成模糊的時間描述
             fixed_line = re.sub(r"在第[一二三四五六七八九十0-9]+卷中", "在之前的行動中", fixed_line)
             fixed_line = re.sub(r"第一卷的時候", "當初最早的時候", fixed_line)
-            fixed_line = re.sub(r"Ch[0-9]+那次", "之前那次事件", fixed_line)
+            fixed_line = re.sub(r"Ch ?[0-9]+ ?那次", "之前那次事件", fixed_line, flags=re.IGNORECASE)
             
+            # 特殊替換：Ch 104 -> 在以前
+            fixed_line = re.sub(r"在 ?Ch ?104 ?中", "在之前的測試中", fixed_line, flags=re.IGNORECASE)
+
             # 如果還是有殘餘的禁詞，進行通用模糊處理
             fixed_line = re.sub(r"第[0-9]+章", "前段時間", fixed_line)
             fixed_line = re.sub(r"本章", "此段", fixed_line)
