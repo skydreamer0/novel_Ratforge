@@ -8,8 +8,8 @@ CHAPTERS_DIR = "/Users/george/Library/CloudStorage/OneDrive-MSFT/0.專案/novel/
 # 模式與略過邏輯
 FORBIDDEN_PATTERNS = [
     r"(?<!# )第[一二三四五六七八九十0-9]+[卷章]",
-    r"(?<!\w)Ch ?[0-9]+",  # Updated to allow optional space
-    r"Chapter ?[0-9]+",    # Updated to allow optional space
+    r"(?<!\w)Ch ?[0-9]+",  # Catch Ch 101, Ch101
+    r"Chapter ?[0-9]+",    # Catch Chapter 101, Chapter101
     r"卷末",
     r"本章",
     r"下一章"
@@ -29,18 +29,20 @@ def fix_content(content, path):
             
         if combined_pattern.search(line):
             # 1. 處理 (本章完), (第X卷完) 系列 - 直接移除
-            fixed_line = re.sub(r"[\(（].*?([卷章]完).*?[\)）]", "", line)
+            fixed_line = re.sub(r"[\(（].*?(卷|章|Ch ?[0-9]+).*?[\)）]", "", line, flags=re.IGNORECASE)
             fixed_line = re.sub(r"第[一二三四五六七八九十0-9]+卷，完。", "", fixed_line)
             
             # 2. 處理內文中的提及 (啟發式替換)
             # 將 "在第X卷中" 類型的詞替換成模糊的時間描述
-            fixed_line = re.sub(r"在第[一二三四五六七八九十0-9]+卷中", "在之前的行動中", fixed_line)
-            fixed_line = re.sub(r"第一卷的時候", "當初最早的時候", fixed_line)
+            fixed_line = re.sub(r"在?第[一二三四五六七八九十0-9]+卷(末期|中)?", "在之前的行動中", fixed_line)
+            fixed_line = re.sub(r"第一(卷|章)的時候", "當初最早的時候", fixed_line)
             fixed_line = re.sub(r"Ch ?[0-9]+ ?那次", "之前那次事件", fixed_line, flags=re.IGNORECASE)
             
-            # 特殊替換：Ch 104 -> 在以前
+            # 特殊替換：Ch 104 -> 在之前的測試中
             fixed_line = re.sub(r"在 ?Ch ?104 ?中", "在之前的測試中", fixed_line, flags=re.IGNORECASE)
-
+            # 特殊替換：Ch 101 -> 之前在引力異常點
+            fixed_line = re.sub(r"Ch ?101 ?(裡|中|那次)", "在引力異常點的那次行動中", fixed_line, flags=re.IGNORECASE)
+            
             # 如果還是有殘餘的禁詞，進行通用模糊處理
             fixed_line = re.sub(r"第[0-9]+章", "前段時間", fixed_line)
             fixed_line = re.sub(r"本章", "此段", fixed_line)

@@ -9,8 +9,8 @@ CHAPTERS_DIR = "/Users/george/Library/CloudStorage/OneDrive-MSFT/0.專案/novel/
 # 排除掉開頭的章節標題
 FORBIDDEN_PATTERNS = [
     r"(?<!# )第[一二三四五六七八九十0-9]+[卷章]",
-    r"Ch[0-9]+",
-    r"Chapter [0-9]+",
+    r"(?<!\w)Ch ?[0-9]+",  # Catch Ch 104, Ch104
+    r"Chapter ?[0-9]+",    # Catch Chapter 104, Chapter104
     r"卷末",
     r"本章",
     r"下一章"
