@@ -434,6 +434,51 @@ function initializeTheme() {
   });
 }
 
+// Ported from previous implementation plan
+function initializeSettings() {
+  // Font Size
+  const fontSizeDecBtn = document.getElementById("font-size-dec");
+  const fontSizeIncBtn = document.getElementById("font-size-inc");
+  let currentFontSize = parseFloat(localStorage.getItem("reader-font-size") || "1.05");
+
+  const applyFontSize = (size) => {
+    document.documentElement.style.setProperty("--content-font-size", `${size}rem`);
+    localStorage.setItem("reader-font-size", size);
+  };
+
+  applyFontSize(currentFontSize);
+
+  fontSizeDecBtn.addEventListener("click", () => {
+    currentFontSize = Math.max(0.8, currentFontSize - 0.05);
+    applyFontSize(currentFontSize.toFixed(2));
+  });
+
+  fontSizeIncBtn.addEventListener("click", () => {
+    currentFontSize = Math.min(2.0, currentFontSize + 0.05);
+    applyFontSize(currentFontSize.toFixed(2));
+  });
+
+  // Width Toggle
+  const widthToggleBtn = document.getElementById("width-toggle");
+  const savedWidthState = localStorage.getItem("reader-full-width") === "true";
+
+  const applyWidth = (isFull) => {
+    if (isFull) {
+      contentEl.classList.add("full-width");
+    } else {
+      contentEl.classList.remove("full-width");
+    }
+    localStorage.setItem("reader-full-width", isFull);
+  };
+
+  applyWidth(savedWidthState);
+
+  widthToggleBtn.addEventListener("click", () => {
+    const isFull = !contentEl.classList.contains("full-width");
+    applyWidth(isFull);
+  });
+}
+
 function closeSidebarOnMobile() {
   if (window.matchMedia("(max-width: 980px)").matches) {
     appEl.classList.add("sidebar-collapsed");
@@ -653,6 +698,7 @@ function bindBottomEdgeTouchScroll() {
 
 async function init() {
   initializeTheme();
+  initializeSettings();
   bindSidebarToggle();
   bindSearch();
   bindNavigation();

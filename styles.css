@@ -7,6 +7,9 @@
   --line: #e0d5c2;
   --sidebar-bg: linear-gradient(160deg, #f2e7d6 0%, #f7f2e8 100%);
   --card-bg: rgba(255, 253, 248, 0.88);
+  /* Configurable variables */
+  --content-font-size: 1.05rem;
+  --content-max-width: 900px;
 }
 
 body[data-theme="dark"] {
@@ -265,16 +268,22 @@ button:disabled {
 }
 
 .content {
-  max-width: 900px;
+  max-width: var(--content-max-width);
   line-height: 1.8;
   overflow-wrap: break-word;
   word-break: break-word;
-  font-size: 1.05rem;
+  font-size: var(--content-font-size);
   background: var(--card-bg);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px 22px;
   box-shadow: 0 8px 24px rgba(39, 34, 26, 0.06);
+  margin: 0 auto;
+  transition: max-width 200ms ease, font-size 200ms ease;
+}
+
+.content.full-width {
+  --content-max-width: 1600px;
 }
 
 .content img {
