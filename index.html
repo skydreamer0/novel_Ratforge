@@ -117,6 +117,57 @@
           </button>
         </div>
       </div>
+
+      <!-- Bottom Settings Panel -->
+      <div class="bottom-panel-overlay"></div>
+      <div id="bottom-panel" class="bottom-panel">
+        <div class="bottom-panel-handle"></div>
+
+        <!-- TTS Section -->
+        <div class="panel-section">
+          <h3>🔊 聽書模式</h3>
+          <div class="tts-controls">
+            <button id="tts-panel-toggle" class="panel-btn tts-play-btn">
+              ▶ 開始朗讀
+            </button>
+            <button id="tts-stop-btn" class="panel-btn">⏹</button>
+          </div>
+          <div class="tts-settings">
+            <div class="tts-rate-row">
+              <label>語速</label>
+              <input id="tts-rate" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+              <span id="tts-rate-label">1.0x</span>
+            </div>
+            <div class="tts-start-from">
+              <label>從哪裡開始</label>
+              <select id="tts-start-select">
+                <option value="beginning">📖 從本章開頭</option>
+                <option value="current" selected>📍 從目前段落</option>
+                <option value="bookmark">🔖 從書籤處</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- Reading Settings -->
+        <div class="panel-section">
+          <h3>⚙️ 閱讀設定</h3>
+          <div class="setting-row">
+            <span>字體大小</span>
+            <div class="font-size-control">
+              <button id="panel-font-dec" class="panel-btn small">A-</button>
+              <span id="panel-font-label">1.1</span>
+              <button id="panel-font-inc" class="panel-btn small">A+</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span>主題</span>
+            <button id="panel-theme-toggle" class="panel-btn">🌙 切換主題</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </body>

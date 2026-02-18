@@ -30,7 +30,18 @@ const state = {
   loadedChapters: [],   // Array of loaded chapter indices
   isLoadingNext: false, // Prevent duplicate loading
   observer: null,       // IntersectionObserver instance
+
+  // New UI State
+  bottomPanelOpen: false,
+  ttsRate: 1.0,
+  ttsStartMode: "current", // 'beginning', 'current', 'bookmark'
 };
+
+// --- Gesture State ---
+let touchStartX = 0;
+let touchStartY = 0;
+let touchEndX = 0; // Not strictly needed if using simple delta in move/end
+let touchEndY = 0;
 
 // --- DOM Elements ---
 const els = {
@@ -55,6 +66,24 @@ const els = {
   prevBtn: document.getElementById("prev-btn"),
   nextBtn: document.getElementById("next-btn"),
   wordCount: document.getElementById("word-count"),
+
+  // Bottom Panel & New Controls
+  bottomPanel: document.getElementById("bottom-panel"),
+  bottomPanelOverlay: document.querySelector(".bottom-panel-overlay"),
+  bottomPanelHandle: document.querySelector(".bottom-panel-handle"),
+
+  // Bottom Panel TTS
+  ttsPanelToggle: document.getElementById("tts-panel-toggle"),
+  ttsStopBtn: document.getElementById("tts-stop-btn"),
+  ttsRateInput: document.getElementById("tts-rate"),
+  ttsRateLabel: document.getElementById("tts-rate-label"),
+  ttsStartSelect: document.getElementById("tts-start-select"),
+
+  // Bottom Panel Settings
+  panelThemeToggle: document.getElementById("panel-theme-toggle"),
+  panelFontInc: document.getElementById("panel-font-inc"),
+  panelFontDec: document.getElementById("panel-font-dec"),
+  panelFontLabel: document.getElementById("panel-font-label"),
 };
 
 // --- Initialization ---
@@ -134,14 +163,17 @@ function applyFontSize() {
 
 function initTTS() {
   // Try to find a Chinese voice
-  const voices = window.speechSynthesis.getVoices();
-  state.tts.voice = voices.find(v => v.lang === "zh-TW" || v.lang === "zh-HK" || v.lang === "zh-CN");
-
-  // Voices render async in Chrome
-  window.speechSynthesis.onvoiceschanged = () => {
+  const loadVoices = () => {
     const voices = window.speechSynthesis.getVoices();
-    state.tts.voice = voices.find(v => v.lang === "zh-TW" || v.lang === "zh-HK" || v.lang === "zh-CN");
+    // Prefer Google or enhanced voices
+    state.tts.voice = voices.find(v => (v.lang === "zh-TW" || v.lang === "zh-HK" || v.lang === "zh-CN") && v.name.includes("Google"))
+      || voices.find(v => v.lang === "zh-TW" || v.lang === "zh-HK" || v.lang === "zh-CN");
   };
+
+  loadVoices();
+  if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
 }
 
 function stopTTS() {
@@ -153,7 +185,6 @@ function stopTTS() {
 
 function toggleTTS() {
   if (state.tts.speaking && !state.tts.paused) {
-    // Pause or Stop? Let's just pause.
     window.speechSynthesis.pause();
     state.tts.paused = true;
   } else if (state.tts.paused) {
@@ -161,12 +192,42 @@ function toggleTTS() {
     state.tts.paused = false;
   } else {
     // Start speaking
-    const text = els.content.innerText; // Get text content only, stripped of HTML
-    if (!text) return;
+    let textToSpeak = "";
 
-    const u = new SpeechSynthesisUtterance(text);
+    if (state.ttsStartMode === "beginning") {
+      textToSpeak = els.content.innerText;
+    } else if (state.ttsStartMode === "bookmark") {
+      // Logic to find bookmark position? For now simple fallback
+      // Detailed implementation would require finding the specific element
+      textToSpeak = els.content.innerText;
+    } else {
+      // "current" - Find visible text
+      // We'll use a crude approximation: find the first visible paragraph
+      const paragraphs = els.content.querySelectorAll("p, h1, h2, h3, blockquote");
+      let startIndex = 0;
+      const viewportTop = window.scrollY + 100;
+
+      for (let i = 0; i < paragraphs.length; i++) {
+        const rect = paragraphs[i].getBoundingClientRect();
+        if (rect.top + window.scrollY > viewportTop) {
+          startIndex = i;
+          break; // Found the first paragraph mostly below top
+        }
+      }
+
+      // Collect text from here onwards
+      for (let i = startIndex; i < paragraphs.length; i++) {
+        textToSpeak += paragraphs[i].innerText + "\n";
+      }
+
+      if (!textToSpeak) textToSpeak = els.content.innerText; // Fallback
+    }
+
+    if (!textToSpeak) return;
+
+    const u = new SpeechSynthesisUtterance(textToSpeak);
     if (state.tts.voice) u.voice = state.tts.voice;
-    u.rate = 1.0;
+    u.rate = state.ttsRate;
     u.pitch = 1.0;
 
     u.onend = () => {
@@ -183,15 +244,25 @@ function toggleTTS() {
 }
 
 function updateTTSIcon() {
+  const isPlaying = state.tts.speaking && !state.tts.paused;
+
+  // Top Nav Icon
   const svg = els.ttsToggle.querySelector("svg");
-  if (state.tts.speaking && !state.tts.paused) {
-    // Pause Icon
+  if (isPlaying) {
     svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />';
     els.ttsToggle.classList.add("speaking");
   } else {
-    // Play/Speaker Icon
     svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />';
     els.ttsToggle.classList.remove("speaking");
+  }
+
+  // Bottom Panel Button
+  if (isPlaying) {
+    els.ttsPanelToggle.textContent = "⏸ 暫停朗讀";
+    els.ttsPanelToggle.classList.add("playing");
+  } else {
+    els.ttsPanelToggle.textContent = "▶ 開始朗讀";
+    els.ttsPanelToggle.classList.remove("playing");
   }
 }
 
@@ -628,6 +699,78 @@ function renderSidebar() {
   }
 }
 
+// --- Bottom Panel & Gestures ---
+
+function toggleBottomPanel(show) {
+  state.bottomPanelOpen = show;
+  if (show) {
+    els.bottomPanel.classList.add("active");
+    els.bottomPanelOverlay.classList.add("active");
+    els.panelFontLabel.textContent = state.fontSize.toFixed(1);
+  } else {
+    els.bottomPanel.classList.remove("active");
+    els.bottomPanelOverlay.classList.remove("active");
+  }
+}
+
+// --- Gesture Handlers ---
+
+function handleTouchStart(e) {
+  if (e.touches.length !== 1) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}
+
+function handleTouchMove(e) {
+  // Optional: Prevent default if gesture is recognized to stop scrolling
+  // But we want to be careful not to block scrolling
+}
+
+function handleTouchEnd(e) {
+  if (e.changedTouches.length !== 1) return;
+
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+
+  const deltaX = touchEndX - touchStartX;
+  const deltaY = touchEndY - touchStartY;
+
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+
+  // Mobile only check (loose check)
+  if (window.innerWidth > 1024) return;
+
+  // 1. Swipe Right: Open Sidebar
+  // Condition: Start near left edge (< 30px), Move Right > 60px, Mostly horizontal
+  if (touchStartX < 40 && deltaX > 60 && absY < 50) {
+    els.app.classList.remove("sidebar-collapsed");
+    return;
+  }
+
+  // 2. Swipe Left: Close Sidebar
+  // Condition: Sidebar is open, Move Left > 60px
+  if (!els.app.classList.contains("sidebar-collapsed") && deltaX < -60 && absY < 50) {
+    els.app.classList.add("sidebar-collapsed");
+    return;
+  }
+
+  // 3. Swipe Up: Open Bottom Panel
+  // Condition: Start near bottom (last 20% or 100px), Move Up > 60px, Mostly vertical
+  const isBottomInternal = touchStartY > window.innerHeight - 120;
+  if (isBottomInternal && deltaY < -60 && absX < 50 && !state.bottomPanelOpen) {
+    toggleBottomPanel(true);
+    return;
+  }
+
+  // 4. Swipe Down: Close Bottom Panel
+  // Condition: Panel Open, Move Down > 60px
+  if (state.bottomPanelOpen && deltaY > 60 && absX < 50) {
+    toggleBottomPanel(false);
+    return;
+  }
+}
+
 function updateActiveSidebarItem() {
   renderSidebar(); // Simple re-render to update 'active' class
 }
@@ -727,7 +870,7 @@ function bindEvents() {
 
   // Click bottom area to page down (infinite scroll handles next chapter)
   document.querySelector(".main-wrapper").addEventListener("click", (e) => {
-    if (e.target.closest("button, a, input, .bottom-nav, .top-nav, .nav-btn, .chapter-divider")) return;
+    if (e.target.closest("button, a, input, .bottom-nav, .top-nav, .nav-btn, .chapter-divider, .bottom-panel")) return;
 
     const clickY = e.clientY;
     const windowH = window.innerHeight;
@@ -736,6 +879,43 @@ function bindEvents() {
       window.scrollBy({ top: windowH * 0.85, behavior: "smooth" });
     }
   });
+
+  // Gestures
+  document.addEventListener("touchstart", handleTouchStart, { passive: true });
+  document.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+  // Bottom Panel Interactions
+  els.bottomPanelOverlay.onclick = () => toggleBottomPanel(false);
+  els.bottomPanelHandle.onclick = () => toggleBottomPanel(false);
+
+  // Panel TTS Controls
+  els.ttsPanelToggle.onclick = toggleTTS;
+  els.ttsStopBtn.onclick = stopTTS;
+  els.ttsRateInput.oninput = (e) => {
+    state.ttsRate = parseFloat(e.target.value);
+    els.ttsRateLabel.textContent = state.ttsRate.toFixed(1) + "x";
+
+    // Live update if speaking
+    if (state.tts.speaking && !state.tts.paused) {
+      // SpeechSynthesis API doesn't support changing rate mid-utterance easily
+      // We have to restart. A bit abrupt, maybe just let next utterance pick it up?
+      // For now, simple let it apply to next.
+    }
+  };
+  els.ttsStartSelect.onchange = (e) => {
+    state.ttsStartMode = e.target.value;
+  };
+
+  // Panel Settings Controls
+  els.panelThemeToggle.onclick = () => els.themeToggle.click();
+  els.panelFontInc.onclick = () => {
+    els.fontSizeInc.click();
+    els.panelFontLabel.textContent = state.fontSize.toFixed(1);
+  };
+  els.panelFontDec.onclick = () => {
+    els.fontSizeDec.click();
+    els.panelFontLabel.textContent = state.fontSize.toFixed(1);
+  };
 }
 
 // --- Main ---
