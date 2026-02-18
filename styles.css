@@ -364,7 +364,9 @@ body {
 }
 
 .nav-controls {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .icon-btn {
@@ -573,6 +575,7 @@ body {
   }
 
   .nav-controls {
+    display: flex;
     width: 100%;
     justify-content: space-between;
   }
