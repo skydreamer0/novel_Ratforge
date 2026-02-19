@@ -6,9 +6,9 @@ import csv
 from datetime import datetime
 
 # --- Configuration ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Root directory
 CHAPTERS_DIR = os.path.join(BASE_DIR, "章稿")
-OUTPUT_CSV = os.path.join(BASE_DIR, "各章字數統計.csv")
+OUTPUT_CSV = os.path.join(BASE_DIR, "scripts", "各章字數統計.csv")
 THRESHOLD = 3000
 
 def count_words(text):
